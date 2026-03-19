@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de CEPs SP - Mevo</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        .info { padding: 10px; background: white; background: rgba(255,255,255,0.9); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; line-height: 1.4; }
+        .info h4 { margin: 0 0 5px; color: #333; }
+        .legend { line-height: 18px; color: #555; background: white; padding: 10px; border-radius: 5px; }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // 1. Configuração do Mapa Base
+    const map = L.map('map').setView([-23.5505, -46.6333], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    // 2. SEUS DADOS (GeoJSON) - Agora dentro do HTML para não dar erro
+    const regioesData = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": { "name": "Centro", "type": "SP - Centro", "ceps": "010 a 013: Sé, República, Bom Retiro..." },
+                "geometry": { "type": "Polygon", "coordinates": [[ [-46.645,-23.535], [-46.620,-23.535], [-46.620,-23.560], [-46.645,-23.560], [-46.645,-23.535] ]] }
+            },
+            {
+                "type": "Feature",
+                "properties": { "name": "Zona Norte", "type": "SP - Norte", "ceps": "020 a 029: Santana, Tucuruvi, Casa Verde..." },
+                "geometry": { "type": "Polygon", "coordinates": [[ [-46.680,-23.460], [-46.560,-23.460], [-46.560,-23.530], [-46.680,-23.530], [-46.680,-23.460] ]] }
+            },
+            {
+                "type": "Feature",
+                "properties": { "name": "Leste 1", "type": "SP - Leste 1", "ceps": "030 a 036: Mooca, Vila Prudente, Tatuapé..." },
+                "geometry": { "type": "Polygon", "coordinates": [[ [-46.610,-23.530], [-46.500,-23.530], [-46.500,-23.590], [-46.610,-23.590], [-46.610,-23.530] ]] }
+            },
+            {
+                "type": "Feature",
+                "properties": { "name": "Leste 2", "type": "SP - Leste 2", "ceps": "037 a 084: Itaquera, São Miguel, Guaianazes..." },
+                "geometry": { "type": "Polygon", "coordinates": [[ [-46.500,-23.480], [-46.370,-23.480], [-46.370,-23.590], [-46.500,-23.590], [-46.500,-23.480] ]] }
+            },
+            {
+                "type": "Feature",
+                "properties": { "name": "Sul 1", "type": "SP - Sul 1", "ceps": "015, 040 a 047: Ipiranga, Jabaquara, Itaim Bibi..." },
+                "geometry": { "type": "Polygon", "coordinates": [[ [-46.680,-23.560], [-46.590,-23.560], [-46.590,-23.680], [-46.680,-23.680], [-46.680,-23.560] ]] }
+            },
+            {
+                "type": "Feature",
+                "properties": { "name": "Sul 2", "type": "SP - Sul 2", "ceps": "044, 048, 049: Grajaú, Parelheiros..." },
+                "geometry": { "type": "Polygon", "coordinates": [[ [-46.750,-23.680], [-46.580,-23.680], [-46.600,-23.900], [-46.780,-23.900], [-46.750,-23.680] ]] }
+            },
+            {
+                "type": "Feature",
+                "properties": { "name": "Oeste Capital", "type": "SP - Oeste", "ceps": "014, 050 a 056: Lapa, Pinheiros, Butantã..." },
+                "geometry": { "type": "Polygon", "coordinates": [[ [-46.780,-23.520], [-46.645,-23.520], [-46.645,-23.620], [-46.780,-23.620], [-46.780,-23.520] ]] }
+            },
+            {
+                "type": "Feature",
+                "properties": { "name": "Grande SP Oeste", "type": "Grande SP", "ceps": "060 a 069: Osasco, Barueri..." },
+                "geometry": { "type": "Polygon", "coordinates": [[ [-46.850,-23.480], [-46.780,-23.480], [-46.780,-23.580], [-46.880,-23.580], [-46.850,-23.480] ]] }
+            },
+            {
+                "type": "Feature",
+                "properties": { "name": "Grande SP Norte / ABC", "type": "Grande SP", "ceps": "070 a 099: Guarulhos, ABC..." },
+                "geometry": { "type": "Polygon", "coordinates": [[ [-46.650,-23.350], [-46.350,-23.350], [-46.350,-23.750], [-46.650,-23.750], [-46.650,-23.350] ]] }
+            }
+        ]
+    };
+
+    // 3. Funções de Estilo
+    function getColor(d) {
+        return d === 'SP - Centro'  ? '#FFD700' :
+               d === 'SP - Norte'   ? '#32CD32' :
+               d === 'SP - Leste 1' ? '#FF4500' :
+               d === 'SP - Leste 2' ? '#8B0000' :
+               d === 'SP - Sul 1'   ? '#1E90FF' :
+               d === 'SP - Sul 2'   ? '#00008B' :
+               d === 'SP - Oeste'   ? '#9370DB' :
+                                      '#A9A9A9';
+    }
+
+    function style(feature) {
+        return { fillColor: getColor(feature.properties.type), weight: 2, opacity: 1, color: 'white', dashArray: '3', fillOpacity: 0.6 };
+    }
+
+    // 4. Painel de Informações
+    const info = L.control();
+    info.onAdd = function (map) { this._div = L.DomUtil.create('div', 'info'); this.update(); return this._div; };
+    info.update = function (props) {
+        this._div.innerHTML = '<h4>Região de Entrega</h4>' +  (props ?
+            '<b>' + props.name + '</b><br />' + props.ceps : 'Passe o mouse sobre uma região');
+    };
+    info.addTo(map);
+
+    // 5. Adicionando Interatividade
+    function highlightFeature(e) {
+        var layer = e.target;
+        layer.setStyle({ weight: 5, color: '#666', dashArray: '', fillOpacity: 0.7 });
+        info.update(layer.feature.properties);
+    }
+
+    function resetHighlight(e) {
+        geojson.resetStyle(e.target);
+        info.update();
+    }
+
+    function onEachFeature(feature, layer) {
+        layer.on({ mouseover: highlightFeature, mouseout: resetHighlight });
+    }
+
+    const geojson = L.geoJson(regioesData, { style: style, onEachFeature: onEachFeature }).addTo(map);
+
+</script>
+</body>
+</html>
