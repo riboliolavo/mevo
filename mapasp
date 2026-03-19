@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Interativo CEPs - SP e Grande SP</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; }
+        #map { height: 100vh; width: 100vw; } /* Mapa ocupa a tela toda */
+
+        /* Estilo para a caixa de informações (Painel de Controle) */
+        .info {
+            padding: 10px 15px;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            color: #333;
+            max-width: 300px;
+        }
+        .info h4 { margin: 0 0 8px; color: #777; }
+        .info strong { color: #000; font-size: 16px; }
+        .info ul { margin: 5px 0 0 15px; padding: 0; }
+        .info li { margin-bottom: 3px; }
+        .info .regiao-tipo { font-size: 12px; color: #666; font-weight: normal; }
+
+        /* Estilo para a Legenda */
+        .legend {
+            line-height: 18px;
+            color: #555;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script src="regioes.js"></script>
+
+    <script>
+        // 1. Inicializa o Mapa (Focado em São Paulo)
+        const map = L.map('map').setView([-23.5505, -46.6333], 10); // Coordenadas de SP, Zoom 10
+
+        // 2. Adiciona o Mapa Base (CartoDB Positron - limpo e claro)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        // 3. Função para definir a cor de cada região (Baseado no tipo/nome)
+        function getColor(type) {
+            return type === 'SP - Centro'   ? '#FFD700' : // Amarelo
+                   type === 'SP - Norte'    ? '#32CD32' : // Verde
+                   type === 'SP - Leste 1'  ? '#FF4500' : // Laranja
+                   type === 'SP - Leste 2'  ? '#8B0000' : // Vinho
+                   type === 'SP - Sul 1'    ? '#1E90FF' : // Azul
+                   type === 'SP - Sul 2'    ? '#00008B' : // Azul Escuro
+                   type === 'SP - Oeste'    ? '#9370DB' : // Roxo
+                   type === 'Grande SP'     ? '#A9A9A9' : // Cinza (para municípios de fora da capital)
+                                             '#CCCCCC';   // Padrão
+        }
+
+        // 4. Função para definir o estilo de cada contorno
+        function style(feature) {
+            return {
+                fillColor: getColor(feature.properties.type),
+                weight: 2,
+                opacity: 1,
+                color: 'white', // Cor da linha de contorno
+                dashArray: '3', // Linha tracejada
+                fillOpacity: 0.6
+            };
+        }
+
+        // 5. Interatividade: O que acontece ao passar o mouse (Hover)
+        function highlightFeature(e) {
+            const layer = e.target;
+
+            layer.setStyle({
+                weight: 4,
+                color: '#666',
+                dashArray: '',
+                fillOpacity: 0.8
+            });
+
+            layer.bringToFront(); // Coloca a região em destaque na frente
+            info.update(layer.feature.properties); // Atualiza o painel de info
+        }
+
+        // 6. Interatividade: O que acontece ao tirar o mouse
+        function resetHighlight(e) {
+            geojson.resetStyle(e.target);
+            info.update(); // Limpa o painel de info
+        }
+
+        // 7. Função para aplicar a interatividade a cada região
+        function onEachFeature(feature, layer) {
+            layer.on({
+                mouseover: highlightFeature,
+                mouseout: resetHighlight
+            });
+        }
+
+        // 8. Adiciona os dados geográficos (que estão no regioes.js) ao mapa
+        // A variável 'regioesData' deve ser definida dentro de regioes.js
+        const geojson = L.geoJson(regioesData, {
+            style: style,
+            onEachFeature: onEachFeature
+        }).addTo(map);
+
+
+        // --- ADICIONANDO CONTROLES ---
+
+        // A. Painel de Informações (Topo Direito)
+        const info = L.control();
+
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info'); // Cria a div com classe 'info'
+            this.update();
+            return this._div;
+        };
+
+        // Método para atualizar o conteúdo do painel
+        info.update = function (props) {
+            if (props) {
+                let cepsHtml = '<ul>';
+                props.ceps.forEach(cepGroup => {
+                    cepsHtml += `<li><strong>${cepGroup.prefix}</strong>: ${cepGroup.areas}</li>`;
+                });
+                cepsHtml += '</ul>';
+
+                this._div.innerHTML = `
+                    <h4>Detalhes da Região</h4>
+                    <strong>${props.name}</strong> <span class="regiao-tipo">(${props.type})</span><br />
+                    ${cepsHtml}
+                `;
+            } else {
+                this._div.innerHTML = '<h4>Detalhes da Região</h4>Passe o mouse sobre uma área.';
+            }
+        };
+
+        info.addTo(map);
+
+        // B. Legenda (Baixo Direito)
+        const legend = L.control({position: 'bottomright'});
+
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info legend');
+            const grades = ['SP - Centro', 'SP - Norte', 'SP - Leste 1', 'SP - Leste 2', 'SP - Sul 1', 'SP - Sul 2', 'SP - Oeste', 'Grande SP'];
+            const labels = [];
+
+            div.innerHTML = '<strong>Legenda</strong><br />';
+
+            for (let i = 0; i < grades.length; i++) {
+                div.innerHTML +=
+                    '<i style="background:' + getColor(grades[i]) + '"></i> ' +
+                    grades[i] + '<br>';
+            }
+
+            return div;
+        };
+
+        legend.addTo(map);
+
+    </script>
+</body>
+</html>
