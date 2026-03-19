@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa de CEPs — São Paulo</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --card: #13161e;
+    --border: #1e2330;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --accent: #f0c040;
+
+    --centro:   #e05b5b;
+    --norte:    #5b9ee0;
+    --leste1:   #5be09a;
+    --leste2:   #3cc47a;
+    --sul1:     #e08a5b;
+    --sul2:     #c46a3c;
+    --oeste:    #a05be0;
+    --gsp-oeste:#7b9ccc;
+    --gsp-norte:#66b3cc;
+    --gsp-leste:#5bccb8;
+    --abc:      #cc8866;
+    --interior: #888899;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    padding: 2.5rem 3rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--accent);
+  }
+
+  header p {
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-bottom: 4px;
+  }
+
+  .search-bar {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .search-bar input {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 4px;
+    width: 160px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-bar input:focus { border-color: var(--accent); }
+  .search-bar input::placeholder { color: var(--muted); }
+
+  .search-bar button {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: opacity 0.2s;
+  }
+  .search-bar button:hover { opacity: 0.85; }
+
+  #search-result {
+    font-size: 0.78rem;
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    display: none;
+  }
+  #search-result.found { background: #1a2e1a; color: #6ee06e; border: 1px solid #2d5a2d; display: block; }
+  #search-result.notfound { background: #2e1a1a; color: #e06e6e; border: 1px solid #5a2d2d; display: block; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 0;
+    min-height: calc(100vh - 120px);
+  }
+
+  /* ---- MAIN GRID ---- */
+  .map-area {
+    padding: 2rem 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .section-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.8rem;
+  }
+
+  .super-group {
+    margin-bottom: 1rem;
+  }
+
+  .super-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-left: 2px solid var(--border);
+    padding-left: 0.7rem;
+    margin-bottom: 1rem;
+  }
+
+  .regions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+  }
+
+  .region-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+    min-width: 160px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .region-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--region-color);
+  }
+
+  .region-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    border-color: var(--region-color);
+  }
+
+  .region-card.active {
+    border-color: var(--region-color);
+    box-shadow: 0 0 0 1px var(--region-color), 0 8px 24px rgba(0,0,0,0.5);
+  }
+
+  .region-card .region-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--region-color);
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.02em;
+  }
+
+  .region-card .cep-preview {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .region-card .cep-count {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.8rem;
+    font-size: 0.65rem;
+    color: var(--muted);
+    background: var(--bg);
+    padding: 2px 5px;
+    border-radius: 3px;
+  }
+
+  /* ---- SIDEBAR ---- */
+  .sidebar {
+    border-left: 1px solid var(--border);
+    padding: 2rem 1.5rem;
+    position: sticky;
+    top: 0;
+    height: calc(100vh - 120px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .sidebar-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60%;
+    gap: 1rem;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  .sidebar-placeholder .icon {
+    font-size: 2.5rem;
+    opacity: 0.3;
+  }
+
+  .sidebar-placeholder p {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.6;
+  }
+
+  .detail-panel { display: none; }
+  .detail-panel.visible { display: block; }
+
+  .detail-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-bottom: 0.2rem;
+    letter-spacing: -0.01em;
+  }
+
+  .detail-super {
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  .detail-bar {
+    height: 3px;
+    border-radius: 2px;
+    margin-bottom: 1.5rem;
+    background: var(--region-color, var(--accent));
+  }
+
+  .cep-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .cep-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.55rem 0.7rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    transition: border-color 0.15s;
+  }
+
+  .cep-item:hover { border-color: var(--muted); }
+
+  .cep-item.highlight {
+    border-color: var(--accent);
+    background: #1a1700;
+  }
+
+  .cep-badge {
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    min-width: 50px;
+  }
+
+  .cep-range {
+    font-size: 0.7rem;
+    color: var(--muted);
+    flex: 1;
+  }
+
+  .cep-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--region-color, var(--accent));
+    flex-shrink: 0;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 1.5rem 0;
+  }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.7rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.7rem;
+    text-align: center;
+  }
+
+  .stat-box .val {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--accent);
+  }
+
+  .stat-box .lbl {
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 2px;
+  }
+
+  /* scrollbar */
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; border-left: none; border-top: 1px solid var(--border); }
+    header { padding: 1.5rem; }
+    .map-area { padding: 1.5rem; }
+  }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--border);
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>CEP · SP</h1>
+    <p>Mapa de faixas de CEP — Município e Grande São Paulo</p>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="cep-input" placeholder="Ex: 031 ou 04500" maxlength="8">
+    <button onclick="searchCep()">Buscar</button>
+  </div>
+  <div id="search-result"></div>
+</header>
+
+<div class="layout">
+  <div class="map-area" id="map-area"></div>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-placeholder" id="placeholder">
+      <div class="icon">◎</div>
+      <p>Selecione uma<br>região para ver<br>os detalhes</p>
+    </div>
+    <div class="detail-panel" id="detail-panel"></div>
+  </div>
+</div>
+
+<script>
+const REGIONS = [
+  // ── MUNICÍPIO DE SÃO PAULO ──────────────────────
+  {
+    id: 'centro',
+    name: 'Centro',
+    super: 'São Paulo — Capital',
+    color: 'var(--centro)',
+    ceps: ['010','011','012','013'],
+    desc: 'Região central histórica: Sé, República, Luz, Consolação.'
+  },
+  {
+    id: 'norte',
+    name: 'Zona Norte',
+    super: 'São Paulo — Capital',
+    color: 'var(--norte)',
+    ceps: ['020','021','022','023','024','025','026','027','028','029','051','052'],
+    desc: 'Santana, Tucuruvi, Jaçanã, Tremembé, Casa Verde, Vila Guilherme.'
+  },
+  {
+    id: 'leste1',
+    name: 'Zona Leste 1',
+    super: 'São Paulo — Capital',
+    color: 'var(--leste1)',
+    ceps: ['030','031','032','033','034','035','036'],
+    desc: 'Mooca, Brás, Belém, Tatuapé, Penha, Aricanduva.'
+  },
+  {
+    id: 'leste2',
+    name: 'Zona Leste 2',
+    super: 'São Paulo — Capital',
+    color: 'var(--leste2)',
+    ceps: ['037','038','039','080','081','082','083','084'],
+    desc: 'São Mateus, Itaquera, Guaianazes, São Miguel, Cidade Tiradentes.'
+  },
+  {
+    id: 'sul1',
+    name: 'Zona Sul 1',
+    super: 'São Paulo — Capital',
+    color: 'var(--sul1)',
+    ceps: ['015','040','041','042','043','045','046','047','057'],
+    desc: 'Ipiranga, Saúde, Vila Mariana, Santo Amaro, Campo Belo, Jabaquara.'
+  },
+  {
+    id: 'sul2',
+    name: 'Zona Sul 2',
+    super: 'São Paulo — Capital',
+    color: 'var(--sul2)',
+    ceps: ['044','048','049','058'],
+    desc: 'Cidade Ademar, Campo Grande, Jardim São Luís, Pedreira, Cidade Dutra.'
+  },
+  {
+    id: 'oeste',
+    name: 'Zona Oeste',
+    super: 'São Paulo — Capital',
+    color: 'var(--oeste)',
+    ceps: ['014','050','051','053','054','055','056'],
+    desc: 'Pinheiros, Lapa, Butantã, Vila Leopoldina, Jaguaré, Perdizes.'
+  },
+  // ── GRANDE SÃO PAULO ────────────────────────────
+  {
+    id: 'gsp-oeste',
+    name: 'Grande SP — Oeste',
+    super: 'Grande São Paulo',
+    color: 'var(--gsp-oeste)',
+    ceps: ['059','060','061','062','063','064','065','066','067','068','069'],
+    desc: 'Osasco, Barueri, Carapicuíba, Jandira, Cotia, Embu das Artes, Taboão da Serra.'
+  },
+  {
+    id: 'gsp-norte',
+    name: 'Grande SP — Norte',
+    super: 'Grande São Paulo',
+    color: 'var(--gsp-norte)',
+    ceps: ['070','071','072','073','074','075','076','077','078','079'],
+    desc: 'Guarulhos, Caieiras, Mairiporã, Arujá, Francisco Morato, Franco da Rocha.'
+  },
+  {
+    id: 'gsp-leste',
+    name: 'Grande SP — Leste',
+    super: 'Grande São Paulo',
+    color: 'var(--gsp-leste)',
+    ceps: ['085','086','087','088','089'],
+    desc: 'Ferraz de Vasconcelos, Poá, Suzano, Mogi das Cruzes, Itaquaquecetuba.'
+  },
+  {
+    id: 'abc',
+    name: 'Região do ABC',
+    super: 'Grande São Paulo',
+    color: 'var(--abc)',
+    ceps: ['090','091','092','093','094','095','096','097','098','099'],
+    desc: 'Santo André, São Bernardo do Campo, São Caetano do Sul, Diadema, Mauá, Ribeirão Pires, Rio Grande da Serra.'
+  },
+  // ── INTERIOR ────────────────────────────────────
+  {
+    id: 'interior',
+    name: 'Interior',
+    super: 'Estado de São Paulo',
+    color: 'var(--interior)',
+    ceps: ['099+'],
+    desc: 'Demais municípios do estado de São Paulo — faixas acima de 099.'
+  },
+];
+
+// Group by super
+const SUPERS = [...new Set(REGIONS.map(r => r.super))];
+
+let activeId = null;
+
+function renderMap() {
+  const area = document.getElementById('map-area');
+  SUPERS.forEach(sup => {
+    const group = REGIONS.filter(r => r.super === sup);
+    const div = document.createElement('div');
+    div.className = 'super-group';
+    div.innerHTML = `<div class="super-title">${sup}</div><div class="regions-row" id="row-${sup.replace(/\s/g,'_')}"></div>`;
+    area.appendChild(div);
+    const row = div.querySelector('.regions-row');
+    group.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'region-card';
+      card.id = 'card-' + r.id;
+      card.style.setProperty('--region-color', r.color);
+      const preview = r.ceps.slice(0, 4).join(', ') + (r.ceps.length > 4 ? '…' : '');
+      card.innerHTML = `
+        <div class="cep-count">${r.ceps.length} faixas</div>
+        <div class="region-name">${r.name}</div>
+        <div class="cep-preview">${preview}</div>
+      `;
+      card.addEventListener('click', () => selectRegion(r.id));
+      row.appendChild(card);
+    });
+  });
+}
+
+function selectRegion(id) {
+  // deactivate all
+  document.querySelectorAll('.region-card').forEach(c => c.classList.remove('active'));
+  activeId = id;
+  const card = document.getElementById('card-' + id);
+  if (card) card.classList.add('active');
+
+  const r = REGIONS.find(x => x.id === id);
+  document.getElementById('placeholder').style.display = 'none';
+
+  const panel = document.getElementById('detail-panel');
+  panel.classList.add('visible');
+  panel.style.setProperty('--region-color', r.color);
+
+  // compute min/max numeric cep
+  const nums = r.ceps.filter(c => c !== '099+').map(c => parseInt(c));
+  const minC = Math.min(...nums);
+  const maxC = Math.max(...nums);
+
+  panel.innerHTML = `
+    <div class="tag">${r.super}</div>
+    <div class="detail-title" style="color:${r.color}">${r.name}</div>
+    <div class="detail-super">${r.desc}</div>
+    <div class="detail-bar" style="background:${r.color}"></div>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="val">${r.ceps.length}</div>
+        <div class="lbl">Faixas de CEP</div>
+      </div>
+      <div class="stat-box">
+        <div class="val">${r.id === 'interior' ? '099+' : (minC === maxC ? minC : minC + '–' + maxC)}</div>
+        <div class="lbl">Intervalo</div>
+      </div>
+    </div>
+
+    <div class="section-label">Faixas incluídas</div>
+    <div class="cep-grid">
+      ${r.ceps.map(c => `
+        <div class="cep-item">
+          <span class="cep-dot" style="background:${r.color}"></span>
+          <span class="cep-badge">${c}xxx</span>
+          <span class="cep-range">CEP ${c}000-000 a ${c}999-999</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function searchCep() {
+  const raw = document.getElementById('cep-input').value.trim().replace(/\D/g,'');
+  const result = document.getElementById('search-result');
+  if (!raw) { result.style.display = 'none'; return; }
+
+  // try prefix lengths 3, 2
+  const prefix3 = raw.substring(0,3);
+  const prefix2 = raw.substring(0,2);
+
+  let found = REGIONS.find(r => r.ceps.includes(prefix3));
+  if (!found) found = REGIONS.find(r => r.ceps.some(c => c.startsWith(prefix2)));
+
+  if (found) {
+    result.className = 'found';
+    result.textContent = `✓ ${prefix3}xxx → ${found.name}`;
+    result.style.display = 'block';
+    selectRegion(found.id);
+
+    // highlight matching cep-item
+    setTimeout(() => {
+      document.querySelectorAll('.cep-item').forEach(el => {
+        if (el.querySelector('.cep-badge')?.textContent.startsWith(prefix3)) {
+          el.classList.add('highlight');
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    }, 50);
+  } else {
+    result.className = 'notfound';
+    result.textContent = `✗ CEP ${prefix3} não encontrado`;
+    result.style.display = 'block';
+  }
+}
+
+document.getElementById('cep-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchCep();
+});
+
+renderMap();
+</script>
+</body>
+</html>
